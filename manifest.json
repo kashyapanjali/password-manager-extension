@@ -1,22 +1,32 @@
 {
-    "manifest_version": 3,
-    "name": "Password Manager",
-    "version": "1.0",
-    "description": "Login with Google and manage credentials",
-    "permissions": ["identity", "storage"],
-    "action": {
-      "default_popup": "popup.html",
-      "default_icon": {
-        "16": "icon.png"
-      }
-    },
-    "oauth2": {
-      "client_id": "285631959305-082nu0lh0fh81j9u7juu34e4c07h8db3.apps.googleusercontent.com",
-      "scopes": ["email", "profile"]
-    },
-    "background": {
-      "service_worker": "background.js"
-    },
-    "host_permissions": ["https://accounts.google.com/*"]
+  "manifest_version": 3,
+  "name": "Password Manager",
+  "version": "1.0",
+  "description": "Login with Google and manage credentials",
+  "permissions": [
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://accounts.google.com/*",
+    "https://www.googleapis.com/*",
+    "https://firestore.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "285631959305-082nu0lh0fh81j9u7juu34e4c07h8db3.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/datastore"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png"
+    }
   }
-  
+}
