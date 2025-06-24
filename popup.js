@@ -125,3 +125,67 @@ document.getElementById("save-credential-btn").addEventListener("click", () => {
 	saveToFirebaseWithToken(site, username, password);
 });
 
+// Fetch credentials from Firestore and display them
+function fetchCredentialsAndShow() {
+	chrome.identity.getAuthToken({ interactive: true }, function (token) {
+		if (chrome.runtime.lastError || !token) {
+			alert("Auth Error: " + chrome.runtime.lastError.message);
+			return;
+		}
+
+		const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
+
+		fetch(url, {
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		})
+			.then((res) => res.json())
+			.then((data) => {
+				if (!data.documents) {
+					alert("No credentials found.");
+					return;
+				}
+				const credentials = data.documents.map(doc => {
+					const fields = doc.fields;
+					return {
+						site: fields.site.stringValue,
+						username: fields.username.stringValue,
+						password: decrypt(fields.password.stringValue),
+						createdAt: fields.createdAt.timestampValue
+					};
+				});
+				showCredentials(credentials);
+			})
+			.catch((err) => {
+				console.error("Fetch credentials error:", err);
+				alert("Failed to fetch credentials");
+			});
+	});
+}
+
+// Display credentials in the popup
+function showCredentials(credentials) {
+	let html = "<h3>Saved Credentials</h3>";
+	html += "<ul style='padding-left: 0;'>";
+	credentials.forEach(cred => {
+		html += `<li style="list-style: none; margin-bottom: 10px;">
+			<strong>Site:</strong> ${cred.site}<br>
+			<strong>Username:</strong> ${cred.username}<br>
+			<strong>Password:</strong> <span style="font-family:monospace;">${cred.password}</span><br>
+			<small>Saved: ${new Date(cred.createdAt).toLocaleString()}</small>
+		</li>`;
+	});
+	html += "</ul>";
+	const form = document.getElementById("add-credential-form");
+	form.style.display = "none";
+	const container = document.getElementById("credentials-list");
+	if (container) {
+		container.innerHTML = html;
+		container.style.display = "block";
+	}
+}
+
+document.getElementById("view-credential-btn").addEventListener("click", fetchCredentialsAndShow);
+
