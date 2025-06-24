@@ -1,4 +1,4 @@
-import { FIREBASE_PROJECT_ID } from "./secrets.js";
+const FIREBASE_PROJECT_ID = self.FIREBASE_PROJECT_ID;
 
 const SECRET_KEY = "anjali-2025";
 
@@ -24,7 +24,7 @@ function getRoleByEmail(email) {
 }
 
 // Save to Firebase Firestore using REST API
-function saveToFirebaseWithToken(site, username, password) {
+function saveToFirebaseWithToken(site, email, username, password) {
 	const encryptedPassword = encrypt(password);
 
 	chrome.identity.getAuthToken({ interactive: true }, function (token) {
@@ -38,11 +38,12 @@ function saveToFirebaseWithToken(site, username, password) {
 		const body = {
 			fields: {
 				site: { stringValue: site },
-				username: { stringValue: username },
 				password: { stringValue: encryptedPassword },
 				createdAt: { timestampValue: new Date().toISOString() },
-			},
+			}
 		};
+		if (email) body.fields.email = { stringValue: email };
+		if (username) body.fields.username = { stringValue: username };
 
 		fetch(url, {
 			method: "POST",
@@ -56,6 +57,7 @@ function saveToFirebaseWithToken(site, username, password) {
 			.then((data) => {
 				alert("Credential saved to Firebase!");
 				document.getElementById("site").value = "";
+				document.getElementById("email").value = "";
 				document.getElementById("username").value = "";
 				document.getElementById("password").value = "";
 			})
@@ -114,15 +116,16 @@ document.getElementById("add-credential-btn").addEventListener("click", () => {
 
 document.getElementById("save-credential-btn").addEventListener("click", () => {
 	const site = document.getElementById("site").value;
+	const email = document.getElementById("email").value;
 	const username = document.getElementById("username").value;
 	const password = document.getElementById("password").value;
 
-	if (!site || !username || !password) {
-		alert("Please fill all fields.");
+	if (!site || !password) {
+		alert("Please fill at least Website and Password fields.");
 		return;
 	}
 
-	saveToFirebaseWithToken(site, username, password);
+	saveToFirebaseWithToken(site, email, username, password);
 });
 
 // Fetch credentials from Firestore and display them
@@ -151,7 +154,8 @@ function fetchCredentialsAndShow() {
 					const fields = doc.fields;
 					return {
 						site: fields.site.stringValue,
-						username: fields.username.stringValue,
+						email: fields.email ? fields.email.stringValue : '',
+						username: fields.username ? fields.username.stringValue : '',
 						password: decrypt(fields.password.stringValue),
 						createdAt: fields.createdAt.timestampValue
 					};
@@ -172,7 +176,8 @@ function showCredentials(credentials) {
 	credentials.forEach(cred => {
 		html += `<li style="list-style: none; margin-bottom: 10px;">
 			<strong>Site:</strong> ${cred.site}<br>
-			<strong>Username:</strong> ${cred.username}<br>
+			${cred.email ? `<strong>Email:</strong> ${cred.email}<br>` : ''}
+			${cred.username ? `<strong>Username:</strong> ${cred.username}<br>` : ''}
 			<strong>Password:</strong> <span style="font-family:monospace;">${cred.password}</span><br>
 			<small>Saved: ${new Date(cred.createdAt).toLocaleString()}</small>
 		</li>`;
