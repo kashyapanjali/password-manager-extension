@@ -186,7 +186,9 @@ function fetchCredentialsAndShow() {
                         email: fields.email ? fields.email.stringValue : '',
                         username: fields.username ? fields.username.stringValue : '',
                         password: decrypt(fields.password.stringValue),
-                        createdAt: (fields.createdAt && fields.createdAt.timestampValue) || doc.name.split('/').pop()
+                        createdAt: (fields && fields.createdAt && typeof fields.createdAt.timestampValue === 'string')
+                            ? fields.createdAt.timestampValue
+                            : doc.name.split('/').pop()
                     };
                 });
                 showCredentials(credentials);
