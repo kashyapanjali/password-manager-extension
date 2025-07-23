@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Dashboard - Password Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Employee Dashboard</h2>
+        <button id="logoutBtn">Logout</button>
+        <div id="credentialsList"></div>
+        <button id="addCredentialBtn">Add Credential</button>
+        <div id="addCredentialForm" style="display:none;">
+            <input type="text" id="site" placeholder="Site" required />
+            <input type="text" id="username" placeholder="Username" required />
+            <input type="password" id="password" placeholder="Password" required />
+            <button id="saveCredentialBtn">Save</button>
+        </div>
+    </div>
+    <script src="employee.js"></script>
+</body>
+</html> 

@@ -96,6 +96,10 @@ document.getElementById("login-btn").addEventListener("click", function () {
 				document.getElementById("user-email").innerText = message;
 				document.getElementById("buttons").style.display = "flex";
 				document.getElementById("logout-container").style.display = "block";
+
+				if (role === "super_admin") {
+					showAdminPanel();
+				}
 			});
 	});
 });
@@ -128,69 +132,387 @@ document.getElementById("save-credential-btn").addEventListener("click", () => {
 	saveToFirebaseWithToken(site, email, username, password);
 });
 
-// Fetch credentials from Firestore and display them
+function showMessage(msg, type = 'info') {
+    let msgDiv = document.getElementById('popup-message');
+    if (!msgDiv) {
+        msgDiv = document.createElement('div');
+        msgDiv.id = 'popup-message';
+        document.body.prepend(msgDiv);
+    }
+    msgDiv.textContent = msg;
+    msgDiv.className = 'popup-message ' + type;
+    msgDiv.style.display = 'block';
+    setTimeout(() => { msgDiv.style.display = 'none'; }, 2500);
+}
+
+function showLoading(show = true) {
+    let loadingDiv = document.getElementById('popup-loading');
+    if (!loadingDiv) {
+        loadingDiv = document.createElement('div');
+        loadingDiv.id = 'popup-loading';
+        loadingDiv.innerHTML = '<span class="loader"></span> Loading...';
+        document.body.prepend(loadingDiv);
+    }
+    loadingDiv.style.display = show ? 'block' : 'none';
+}
+
+// Wrap fetches with loading
 function fetchCredentialsAndShow() {
-	chrome.identity.getAuthToken({ interactive: true }, function (token) {
-		if (chrome.runtime.lastError || !token) {
-			alert("Auth Error: " + chrome.runtime.lastError.message);
-			return;
-		}
-
-		const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
-
-		fetch(url, {
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
-		})
-			.then((res) => res.json())
-			.then((data) => {
-				if (!data.documents) {
-					alert("No credentials found.");
-					return;
-				}
-				const credentials = data.documents.map(doc => {
-					const fields = doc.fields;
-					return {
-						site: fields.site.stringValue,
-						email: fields.email ? fields.email.stringValue : '',
-						username: fields.username ? fields.username.stringValue : '',
-						password: decrypt(fields.password.stringValue),
-						createdAt: fields.createdAt.timestampValue
-					};
-				});
-				showCredentials(credentials);
-			})
-			.catch((err) => {
-				console.error("Fetch credentials error:", err);
-				alert("Failed to fetch credentials");
-			});
-	});
+    showLoading(true);
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            showLoading(false);
+            showMessage("Auth Error: " + chrome.runtime.lastError.message, 'error');
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
+        fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                showLoading(false);
+                if (!data.documents) {
+                    showMessage('No credentials found.', 'info');
+                    return;
+                }
+                const credentials = data.documents.map(doc => {
+                    const fields = doc.fields;
+                    return {
+                        site: fields.site.stringValue,
+                        email: fields.email ? fields.email.stringValue : '',
+                        username: fields.username ? fields.username.stringValue : '',
+                        password: decrypt(fields.password.stringValue),
+                        createdAt: (fields.createdAt && fields.createdAt.timestampValue) || doc.name.split('/').pop()
+                    };
+                });
+                showCredentials(credentials);
+            })
+            .catch((err) => {
+                showLoading(false);
+                console.error("Fetch credentials error:", err);
+                showMessage("Failed to fetch credentials", 'error');
+            });
+    });
 }
 
 // Display credentials in the popup
 function showCredentials(credentials) {
-	let html = "<h3>Saved Credentials</h3>";
-	html += "<ul style='padding-left: 0;'>";
-	credentials.forEach(cred => {
-		html += `<li style="list-style: none; margin-bottom: 10px;">
-			<strong>Site:</strong> ${cred.site}<br>
-			${cred.email ? `<strong>Email:</strong> ${cred.email}<br>` : ''}
-			${cred.username ? `<strong>Username:</strong> ${cred.username}<br>` : ''}
-			<strong>Password:</strong> <span style="font-family:monospace;">${cred.password}</span><br>
-			<small>Saved: ${new Date(cred.createdAt).toLocaleString()}</small>
-		</li>`;
-	});
-	html += "</ul>";
-	const form = document.getElementById("add-credential-form");
-	form.style.display = "none";
-	const container = document.getElementById("credentials-list");
-	if (container) {
-		container.innerHTML = html;
-		container.style.display = "block";
-	}
+    let html = "<h3>Your Saved Credentials</h3>";
+    html += "<ul style='padding-left: 0;'>";
+    credentials.forEach(cred => {
+        html += `<li style="list-style: none; margin-bottom: 10px; border:1px solid #eee; border-radius:6px; padding:8px;" id="emp-cred-${cred.createdAt}">
+            <div class="cred-view">
+                <strong>Site:</strong> ${cred.site}<br>
+                ${cred.email ? `<strong>Email:</strong> ${cred.email}<br>` : ''}
+                ${cred.username ? `<strong>Username:</strong> ${cred.username}<br>` : ''}
+                <strong>Password:</strong> <span style="font-family:monospace;">${cred.password}</span><br>
+                <small>Saved: ${new Date(cred.createdAt).toLocaleString()}</small><br>
+                <button class="edit-emp-cred-btn" data-createdat="${cred.createdAt}">Edit</button>
+                <button class="delete-emp-cred-btn" data-createdat="${cred.createdAt}">Delete</button>
+            </div>
+        </li>`;
+    });
+    html += "</ul>";
+    const form = document.getElementById("add-credential-form");
+    form.style.display = "none";
+    const container = document.getElementById("credentials-list");
+    if (container) {
+        container.innerHTML = html;
+        container.style.display = "block";
+    }
+    addEmployeePanelHandlers(credentials);
+}
+
+function addEmployeePanelHandlers(credentials) {
+    document.querySelectorAll('.delete-emp-cred-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const createdAt = this.getAttribute('data-createdat');
+            if (confirm('Are you sure you want to delete this credential?')) {
+                deleteEmployeeCredentialByCreatedAt(createdAt);
+            }
+        });
+    });
+    document.querySelectorAll('.edit-emp-cred-btn').forEach((btn, idx) => {
+        btn.addEventListener('click', function() {
+            const createdAt = this.getAttribute('data-createdat');
+            const cred = credentials.find(c => c.createdAt === createdAt);
+            if (!cred) return;
+            const li = document.getElementById(`emp-cred-${createdAt}`);
+            li.innerHTML = `<div class="cred-edit">
+                <label>Site: <input type="text" id="edit-emp-site-${createdAt}" value="${cred.site}" /></label><br>
+                <label>Email: <input type="text" id="edit-emp-email-${createdAt}" value="${cred.email}" /></label><br>
+                <label>Username: <input type="text" id="edit-emp-username-${createdAt}" value="${cred.username}" /></label><br>
+                <label>Password: <input type="text" id="edit-emp-password-${createdAt}" value="${cred.password}" /></label><br>
+                <button class="save-emp-cred-btn" data-createdat="${createdAt}">Save</button>
+                <button class="cancel-emp-cred-btn" data-createdat="${createdAt}">Cancel</button>
+            </div>`;
+            document.querySelector(`#emp-cred-${createdAt} .save-emp-cred-btn`).addEventListener('click', function() {
+                const updated = {
+                    site: document.getElementById(`edit-emp-site-${createdAt}`).value,
+                    email: document.getElementById(`edit-emp-email-${createdAt}`).value,
+                    username: document.getElementById(`edit-emp-username-${createdAt}`).value,
+                    password: document.getElementById(`edit-emp-password-${createdAt}`).value
+                };
+                updateEmployeeCredentialByCreatedAt(createdAt, updated);
+            });
+            document.querySelector(`#emp-cred-${createdAt} .cancel-emp-cred-btn`).addEventListener('click', function() {
+                fetchCredentialsAndShow();
+            });
+        });
+    });
+}
+
+function deleteEmployeeCredentialByCreatedAt(createdAt) {
+    // Find the credential's Firestore ID by createdAt
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            alert("Auth Error: " + chrome.runtime.lastError.message);
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
+        fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.documents) return;
+                const doc = data.documents.find(doc => doc.fields.createdAt.timestampValue === createdAt);
+                if (!doc) return;
+                const credId = doc.name.split('/').pop();
+                // Now delete
+                const delUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials/${credId}`;
+                fetch(delUrl, {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                })
+                    .then(() => {
+                        fetchCredentialsAndShow();
+                    })
+                    .catch((err) => {
+                        console.error("Delete credential error:", err);
+                        alert("Failed to delete credential");
+                    });
+            });
+    });
+}
+
+function updateEmployeeCredentialByCreatedAt(createdAt, updated) {
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            alert("Auth Error: " + chrome.runtime.lastError.message);
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
+        fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.documents) return;
+                const doc = data.documents.find(doc => doc.fields.createdAt.timestampValue === createdAt);
+                if (!doc) return;
+                const credId = doc.name.split('/').pop();
+                // Now update
+                const patchUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials/${credId}`;
+                const body = {
+                    fields: {
+                        site: { stringValue: updated.site },
+                        email: { stringValue: updated.email },
+                        username: { stringValue: updated.username },
+                        password: { stringValue: encrypt(updated.password) },
+                        createdAt: { timestampValue: createdAt }
+                    }
+                };
+                fetch(patchUrl, {
+                    method: "PATCH",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                })
+                    .then(() => {
+                        fetchCredentialsAndShow();
+                    })
+                    .catch((err) => {
+                        console.error("Update credential error:", err);
+                        alert("Failed to update credential");
+                    });
+            });
+    });
 }
 
 document.getElementById("view-credential-btn").addEventListener("click", fetchCredentialsAndShow);
+
+function showAdminPanel() {
+    document.getElementById("admin-panel").style.display = "block";
+    fetchAllCredentialsForAdmin();
+}
+
+function fetchAllCredentialsForAdmin() {
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            alert("Auth Error: " + chrome.runtime.lastError.message);
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials`;
+        fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.documents) {
+                    document.getElementById("all-credentials-list").innerHTML = '<li>No credentials found.</li>';
+                    return;
+                }
+                const credentials = data.documents.map((doc, idx) => {
+                    const fields = doc.fields;
+                    return {
+                        id: doc.name.split('/').pop(),
+                        site: fields.site.stringValue,
+                        email: fields.email ? fields.email.stringValue : '',
+                        username: fields.username ? fields.username.stringValue : '',
+                        password: decrypt(fields.password.stringValue),
+                        owner: fields.email ? fields.email.stringValue : '',
+                        createdAt: (fields.createdAt && fields.createdAt.timestampValue) || doc.name.split('/').pop()
+                    };
+                });
+                showAllCredentialsForAdmin(credentials);
+            })
+            .catch((err) => {
+                console.error("Fetch credentials error:", err);
+                alert("Failed to fetch credentials");
+            });
+    });
+}
+
+function showAllCredentialsForAdmin(credentials) {
+    let html = "";
+    credentials.forEach((cred, idx) => {
+        html += `<li style="list-style: none; margin-bottom: 10px; border:1px solid #eee; border-radius:6px; padding:8px;" id="admin-cred-${cred.id}">
+            <div class="cred-view">
+                <strong>Site:</strong> ${cred.site}<br>
+                ${cred.email ? `<strong>Email:</strong> ${cred.email}<br>` : ''}
+                ${cred.username ? `<strong>Username:</strong> ${cred.username}<br>` : ''}
+                <strong>Password:</strong> <span style="font-family:monospace;">${cred.password}</span><br>
+                <strong>Owner:</strong> ${cred.owner}<br>
+                <small>Saved: ${new Date(cred.createdAt).toLocaleString()}</small><br>
+                <button class="edit-admin-cred-btn" data-id="${cred.id}">Edit</button>
+                <button class="delete-admin-cred-btn" data-id="${cred.id}">Delete</button>
+            </div>
+        </li>`;
+    });
+    document.getElementById("all-credentials-list").innerHTML = html;
+    addAdminPanelHandlers(credentials);
+}
+
+function addAdminPanelHandlers(credentials) {
+    document.querySelectorAll('.delete-admin-cred-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const credId = this.getAttribute('data-id');
+            if (confirm('Are you sure you want to delete this credential?')) {
+                deleteCredentialById(credId);
+            }
+        });
+    });
+    document.querySelectorAll('.edit-admin-cred-btn').forEach((btn, idx) => {
+        btn.addEventListener('click', function() {
+            const credId = this.getAttribute('data-id');
+            const cred = credentials.find(c => c.id === credId);
+            if (!cred) return;
+            const li = document.getElementById(`admin-cred-${credId}`);
+            li.innerHTML = `<div class="cred-edit">
+                <label>Site: <input type="text" id="edit-site-${credId}" value="${cred.site}" /></label><br>
+                <label>Email: <input type="text" id="edit-email-${credId}" value="${cred.email}" /></label><br>
+                <label>Username: <input type="text" id="edit-username-${credId}" value="${cred.username}" /></label><br>
+                <label>Password: <input type="text" id="edit-password-${credId}" value="${cred.password}" /></label><br>
+                <button class="save-admin-cred-btn" data-id="${credId}">Save</button>
+                <button class="cancel-admin-cred-btn" data-id="${credId}">Cancel</button>
+            </div>`;
+            document.querySelector(`#admin-cred-${credId} .save-admin-cred-btn`).addEventListener('click', function() {
+                const updated = {
+                    site: document.getElementById(`edit-site-${credId}`).value,
+                    email: document.getElementById(`edit-email-${credId}`).value,
+                    username: document.getElementById(`edit-username-${credId}`).value,
+                    password: document.getElementById(`edit-password-${credId}`).value
+                };
+                updateCredentialById(credId, updated);
+            });
+            document.querySelector(`#admin-cred-${credId} .cancel-admin-cred-btn`).addEventListener('click', function() {
+                fetchAllCredentialsForAdmin();
+            });
+        });
+    });
+}
+
+function updateCredentialById(credId, updated) {
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            alert("Auth Error: " + chrome.runtime.lastError.message);
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials/${credId}`;
+        const body = {
+            fields: {
+                site: { stringValue: updated.site },
+                email: { stringValue: updated.email },
+                username: { stringValue: updated.username },
+                password: { stringValue: encrypt(updated.password) }
+            }
+        };
+        fetch(url, {
+            method: "PATCH",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        })
+            .then(() => {
+                fetchAllCredentialsForAdmin();
+            })
+            .catch((err) => {
+                console.error("Update credential error:", err);
+                alert("Failed to update credential");
+            });
+    });
+}
+
+function deleteCredentialById(credId) {
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+        if (chrome.runtime.lastError || !token) {
+            alert("Auth Error: " + chrome.runtime.lastError.message);
+            return;
+        }
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/credentials/${credId}`;
+        fetch(url, {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then(() => {
+                fetchAllCredentialsForAdmin();
+            })
+            .catch((err) => {
+                console.error("Delete credential error:", err);
+                alert("Failed to delete credential");
+            });
+    });
+}
 
