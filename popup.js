@@ -179,13 +179,16 @@ function fetchCredentialsAndShow() {
                     showMessage('No credentials found.', 'info');
                     return;
                 }
+                // Map Firestore documents to credential objects for display
+                // Robustly handle missing or malformed 'createdAt' fields
                 const credentials = data.documents.map(doc => {
                     const fields = doc.fields;
                     return {
-                        site: fields.site.stringValue,
-                        email: fields.email ? fields.email.stringValue : '',
-                        username: fields.username ? fields.username.stringValue : '',
-                        password: decrypt(fields.password.stringValue),
+                        site: fields.site.stringValue, // Website name or domain
+                        email: fields.email ? fields.email.stringValue : '', // Optional email
+                        username: fields.username ? fields.username.stringValue : '', // Optional username
+                        password: decrypt(fields.password.stringValue), // Decrypt the stored password
+                        // Use createdAt timestamp if available and valid, otherwise fallback to document ID
                         createdAt: (fields && fields.createdAt && typeof fields.createdAt.timestampValue === 'string')
                             ? fields.createdAt.timestampValue
                             : doc.name.split('/').pop()
