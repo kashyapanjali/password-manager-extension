@@ -16,6 +16,7 @@ logoutBtn.addEventListener('click', () => {
   });
 });
 
+//function to store the credentials
 function loadCredentials() {
   chrome.storage.local.get(['credentials'], (result) => {
     const credentials = result.credentials || [];
@@ -43,6 +44,7 @@ function loadCredentials() {
 }
 
 function addAdminActions() {
+  // Action by the admin
   document.querySelectorAll('.deleteBtn').forEach(btn => {
     btn.addEventListener('click', function() {
       const idx = parseInt(this.getAttribute('data-idx'));

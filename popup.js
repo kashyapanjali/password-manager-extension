@@ -189,7 +189,7 @@ function fetchCredentialsAndShow() {
                         username: fields.username ? fields.username.stringValue : '', // Optional username
                         password: decrypt(fields.password.stringValue), // Decrypt the stored password
                         // Use createdAt timestamp if available and valid, otherwise fallback to document ID
-                        createdAt: (fields && fields.createdAt && typeof fields.createdAt.timestampValue === 'string')
+                        createdAt: (fields && fields.createdAt && fields.createdAt.timestampValue)
                             ? fields.createdAt.timestampValue
                             : doc.name.split('/').pop()
                     };
