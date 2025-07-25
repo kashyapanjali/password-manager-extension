@@ -40,6 +40,12 @@
           "resources": ["login.html", "admin.html", "employee.html"],
           "matches": ["<all_urls>"]
       }
-  ]
+  ],
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
 }
 
